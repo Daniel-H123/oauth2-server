@@ -410,15 +410,15 @@ class BearerResponseTypeTest extends TestCase
 
         $response = $responseType->generateHttpResponse(new Response());
 
-        $this->assertInstanceOf(ResponseInterface::class, $response);
-        $this->assertEquals(200, $response->getStatusCode());
-        $this->assertEquals('no-cache', $response->getHeader('pragma')[0]);
-        $this->assertEquals('no-store', $response->getHeader('cache-control')[0]);
-        $this->assertEquals('application/json; charset=UTF-8', $response->getHeader('content-type')[0]);
+        self::assertInstanceOf(ResponseInterface::class, $response);
+        self::assertEquals(200, $response->getStatusCode());
+        self::assertEquals('no-cache', $response->getHeader('pragma')[0]);
+        self::assertEquals('no-store', $response->getHeader('cache-control')[0]);
+        self::assertEquals('application/json; charset=UTF-8', $response->getHeader('content-type')[0]);
 
         $response->getBody()->rewind();
         $json = json_decode($response->getBody()->getContents());
-        $this->assertEquals('Bearer', $json->token_type);
+        self::assertEquals('Bearer', $json->token_type);
 
         foreach (['expires_in', 'access_token', 'refresh_token', 'id_token'] as $claim) {
             self::assertTrue(property_exists($json, $claim));
@@ -428,32 +428,32 @@ class BearerResponseTypeTest extends TestCase
 
         $validator = new Validator();
 
-        $this->assertTrue($validator->validate(
+        self::assertTrue($validator->validate(
             $token,
             new SignedWith(new Sha256(), InMemory::file(__DIR__ . '/../Stubs/public.key', ''))
         ));
 
-        $this->assertTrue($validator->validate(
+        self::assertTrue($validator->validate(
             $token,
             new IssuedBy('https://example.com')
         ));
 
-        $this->assertTrue($validator->validate(
+        self::assertTrue($validator->validate(
             $token,
             new PermittedFor($client->getIdentifier())
         ));
 
-        $this->assertTrue($validator->validate(
+        self::assertTrue($validator->validate(
             $token,
             new RelatedTo($accessToken->getUserIdentifier())
         ));
 
-        $this->assertTrue($validator->validate(
+        self::assertTrue($validator->validate(
             $token,
             new LooseValidAt(new SystemClock($accessToken->getExpiryDateTime()->getTimezone()))
         ));
 
-        $this->assertTrue($validator->validate($token, new HasClaimWithValue('acr', 'pop')));
-        $this->assertTrue($validator->validate($token, new HasClaimWithValue('nonce', 's6G31Kolwu9p')));
+        self::assertTrue($validator->validate($token, new HasClaimWithValue('acr', 'pop')));
+        self::assertTrue($validator->validate($token, new HasClaimWithValue('nonce', 's6G31Kolwu9p')));
     }
 }
