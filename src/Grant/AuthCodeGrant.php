@@ -15,6 +15,7 @@ namespace League\OAuth2\Server\Grant;
 use DateInterval;
 use DateTimeImmutable;
 use Exception;
+use InvalidArgumentException;
 use League\OAuth2\Server\CodeChallengeVerifiers\CodeChallengeVerifierInterface;
 use League\OAuth2\Server\CodeChallengeVerifiers\PlainVerifier;
 use League\OAuth2\Server\CodeChallengeVerifiers\S256Verifier;
@@ -96,14 +97,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
         ResponseTypeInterface $responseType,
         DateInterval $accessTokenTTL
     ): ResponseTypeInterface {
-        list($clientId) = $this->getClientCredentials($request);
-
-        $client = $this->getClientEntityOrFail($clientId, $request);
-
-        // Only validate the client if it is confidential
-        if ($client->isConfidential()) {
-            $this->validateClient($request);
-        }
+        $client = $this->validateClient($request);
 
         $encryptedAuthCode = $this->getRequestParameter('code', $request);
 
@@ -123,8 +117,10 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
                 $authCodePayload->user_id,
                 $authCodePayload->auth_code_id
             );
+        } catch (InvalidArgumentException $e) {
+            throw OAuthServerException::invalidGrant('Cannot validate the provided authorization code');
         } catch (LogicException $e) {
-            throw OAuthServerException::invalidRequest('code', 'Cannot decrypt the authorization code', $e);
+            throw OAuthServerException::invalidRequest('code', 'Issue decrypting the authorization code', $e);
         }
 
         $codeVerifier = $this->getRequestParameter('code_verifier', $request);
@@ -179,7 +175,11 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
             if (isset($this->codeChallengeVerifiers[$authCodePayload->code_challenge_method])) {
                 $codeChallengeVerifier = $this->codeChallengeVerifiers[$authCodePayload->code_challenge_method];
 
-                if (!isset($authCodePayload->code_challenge) || $codeChallengeVerifier->verifyCodeChallenge($codeVerifier, $authCodePayload->code_challenge) === false) {
+                if (
+                    !property_exists($authCodePayload, 'code_challenge') ||
+                    !isset($authCodePayload->code_challenge) ||
+                    $codeChallengeVerifier->verifyCodeChallenge($codeVerifier, $authCodePayload->code_challenge) === false
+                ) {
                     throw OAuthServerException::invalidGrant('Failed to verify `code_verifier`.');
                 }
             } else {
@@ -206,7 +206,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
         }
 
         if (time() > $authCodePayload->expire_time) {
-            throw OAuthServerException::invalidRequest('code', 'Authorization code has expired');
+            throw OAuthServerException::invalidGrant('Authorization code has expired');
         }
 
         if ($this->authCodeRepository->isAuthCodeRevoked($authCodePayload->auth_code_id) === true) {
