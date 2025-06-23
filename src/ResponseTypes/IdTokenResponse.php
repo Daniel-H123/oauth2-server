@@ -71,7 +71,7 @@ class IdTokenResponse extends BearerTokenResponse
      */
     protected function getExtraParams(AccessTokenEntityInterface $accessToken): array
     {
-        // Onyly add id_token to openid scopes
+        // Only add id_token to openid scopes
         if (!self::isOpenIDRequest($accessToken->getScopes())) {
             return [];
         }
