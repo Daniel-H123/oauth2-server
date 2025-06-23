@@ -17,6 +17,7 @@ use League\OAuth2\Server\Entities\UserEntityInterface;
 use League\OAuth2\Server\Exception\OAuthServerException;
 use League\OAuth2\Server\Repositories\RefreshTokenRepositoryInterface;
 use League\OAuth2\Server\RequestEvent;
+use League\OAuth2\Server\RequestTypes\AuthorizationRequest;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
 use League\OAuth2\Server\ResponseTypes\RedirectResponse;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
@@ -30,8 +31,9 @@ use function time;
 
 class ImplicitGrant extends AbstractAuthorizeGrant
 {
-    public function __construct(private DateInterval $accessTokenTTL, private string $queryDelimiter = '#')
+    public function __construct(private DateInterval $accessTokenTTL, string $queryDelimiter = '#')
     {
+        $this->queryDelimiter = $queryDelimiter;
     }
 
     /**
@@ -94,53 +96,7 @@ class ImplicitGrant extends AbstractAuthorizeGrant
      */
     public function validateAuthorizationRequest(ServerRequestInterface $request): AuthorizationRequestInterface
     {
-        $clientId = $this->getQueryStringParameter(
-            'client_id',
-            $request,
-            $this->getServerParameter('PHP_AUTH_USER', $request)
-        );
-
-        if (is_null($clientId)) {
-            throw OAuthServerException::invalidRequest('client_id');
-        }
-
-        $client = $this->getClientEntityOrFail($clientId, $request);
-
-        $redirectUri = $this->getQueryStringParameter('redirect_uri', $request);
-
-        if ($redirectUri !== null) {
-            $this->validateRedirectUri($redirectUri, $client, $request);
-        } elseif (
-            $client->getRedirectUri() === '' ||
-            (is_array($client->getRedirectUri()) && count($client->getRedirectUri()) !== 1)
-        ) {
-            $this->getEmitter()->emit(new RequestEvent(RequestEvent::CLIENT_AUTHENTICATION_FAILED, $request));
-            throw OAuthServerException::invalidClient($request);
-        }
-
-        $stateParameter = $this->getQueryStringParameter('state', $request);
-
-        $scopes = $this->validateScopes(
-            $this->getQueryStringParameter('scope', $request, $this->defaultScope),
-            $this->makeRedirectUri(
-                $redirectUri ?? $this->getClientRedirectUri($client),
-                $stateParameter !== null ? ['state' => $stateParameter] : [],
-                $this->queryDelimiter
-            )
-        );
-
-        $authorizationRequest = $this->createAuthorizationRequest();
-        $authorizationRequest->setGrantTypeId($this->getIdentifier());
-        $authorizationRequest->setClient($client);
-        $authorizationRequest->setRedirectUri($redirectUri);
-
-        if ($stateParameter !== null) {
-            $authorizationRequest->setState($stateParameter);
-        }
-
-        $authorizationRequest->setScopes($scopes);
-
-        return $authorizationRequest;
+        return $this->createAuthorizationRequest($request);
     }
 
     /**
@@ -184,8 +140,7 @@ class ImplicitGrant extends AbstractAuthorizeGrant
                         'token_type'   => 'Bearer',
                         'expires_in'   => $accessToken->getExpiryDateTime()->getTimestamp() - time(),
                         'state'        => $authorizationRequest->getState(),
-                    ],
-                    $this->queryDelimiter
+                    ]
                 )
             );
 
@@ -199,8 +154,7 @@ class ImplicitGrant extends AbstractAuthorizeGrant
                 $finalRedirectUri,
                 [
                     'state' => $authorizationRequest->getState(),
-                ],
-                $this->queryDelimiter
+                ]
             )
         );
     }

@@ -15,26 +15,60 @@ declare(strict_types=1);
 namespace League\OAuth2\Server\Grant;
 
 use League\OAuth2\Server\Entities\ClientEntityInterface;
+use League\OAuth2\Server\Exception\OAuthServerException;
+use League\OAuth2\Server\RequestEvent;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequest;
 use League\OAuth2\Server\RequestTypes\AuthorizationRequestInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function http_build_query;
 
 abstract class AbstractAuthorizeGrant extends AbstractGrant
 {
+    protected string $queryDelimiter = '?';
+
     /**
      * @param array<array-key,mixed> $params
      */
-    public function makeRedirectUri(string $uri, array $params = [], string $queryDelimiter = '?'): string
+    public function makeRedirectUri(string $uri, array $params = []): string
     {
-        $uri .= str_contains($uri, $queryDelimiter) ? '&' : $queryDelimiter;
+        $uri .= str_contains($uri, $this->queryDelimiter) ? '&' : $this->queryDelimiter;
 
         return $uri . http_build_query($params);
     }
 
-    protected function createAuthorizationRequest(): AuthorizationRequestInterface
+    /**
+     * @throws OAuthServerException
+     */
+    protected function createAuthorizationRequest(ServerRequestInterface $request): AuthorizationRequestInterface
     {
-        return new AuthorizationRequest();
+        $client = $this->getClientEntity($request);
+
+        $redirectUri = $this->getRedirectUri($request, $client);
+
+        $stateParameter = $this->getQueryStringParameter('state', $request);
+
+        $scopes = $this->validateScopes(
+            $this->getQueryStringParameter('scope', $request, $this->defaultScope),
+            $this->makeRedirectUri(
+                $redirectUri ?? $this->getClientRedirectUri($client),
+                $stateParameter !== null ? ['state' => $stateParameter] : []
+            )
+        );
+
+        $authorizationRequest = new AuthorizationRequest();
+
+        $authorizationRequest->setGrantTypeId($this->getIdentifier());
+        $authorizationRequest->setClient($client);
+        $authorizationRequest->setRedirectUri($redirectUri);
+
+        if ($stateParameter !== null) {
+            $authorizationRequest->setState($stateParameter);
+        }
+
+        $authorizationRequest->setScopes($scopes);
+
+        return $authorizationRequest;
     }
 
     /**
@@ -45,5 +79,52 @@ abstract class AbstractAuthorizeGrant extends AbstractGrant
         return is_array($client->getRedirectUri())
             ? $client->getRedirectUri()[0]
             : $client->getRedirectUri();
+    }
+
+    /**
+     * @throws OAuthServerException
+     */
+    protected function getClientId(ServerRequestInterface $request): ?string
+    {
+        return $this->getQueryStringParameter(
+            'client_id',
+            $request,
+            $this->getServerParameter('PHP_AUTH_USER', $request)
+        );
+    }
+
+    /**
+     * @throws OAuthServerException
+     */
+    protected function getClientEntity(ServerRequestInterface $request): ClientEntityInterface
+    {
+        $clientId = $this->getClientId($request);
+
+        if ($clientId === null) {
+            throw OAuthServerException::invalidRequest('client_id');
+        }
+
+        return $this->getClientEntityOrFail($clientId, $request);
+    }
+
+    /**
+     * @throws OAuthServerException
+     */
+    protected function getRedirectUri(ServerRequestInterface $request, ClientEntityInterface $client): ?string
+    {
+        $redirectUri = $this->getQueryStringParameter('redirect_uri', $request);
+
+        if (!is_null($redirectUri)) {
+            $this->validateRedirectUri($redirectUri, $client, $request);
+        } elseif (
+            $client->getRedirectUri() === '' ||
+            (is_array($client->getRedirectUri()) && count($client->getRedirectUri()) !== 1)
+        ) {
+            $this->getEmitter()->emit(new RequestEvent(RequestEvent::CLIENT_AUTHENTICATION_FAILED, $request));
+
+            throw OAuthServerException::invalidClient($request);
+        }
+
+        return $redirectUri;
     }
 }

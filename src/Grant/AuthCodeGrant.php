@@ -255,51 +255,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
      */
     public function validateAuthorizationRequest(ServerRequestInterface $request): AuthorizationRequestInterface
     {
-        $clientId = $this->getQueryStringParameter(
-            'client_id',
-            $request,
-            $this->getServerParameter('PHP_AUTH_USER', $request)
-        );
-
-        if ($clientId === null) {
-            throw OAuthServerException::invalidRequest('client_id');
-        }
-
-        $client = $this->getClientEntityOrFail($clientId, $request);
-
-        $redirectUri = $this->getQueryStringParameter('redirect_uri', $request);
-
-        if ($redirectUri !== null) {
-            $this->validateRedirectUri($redirectUri, $client, $request);
-        } elseif (
-            $client->getRedirectUri() === '' ||
-            (is_array($client->getRedirectUri()) && count($client->getRedirectUri()) !== 1)
-        ) {
-            $this->getEmitter()->emit(new RequestEvent(RequestEvent::CLIENT_AUTHENTICATION_FAILED, $request));
-
-            throw OAuthServerException::invalidClient($request);
-        }
-
-        $stateParameter = $this->getQueryStringParameter('state', $request);
-
-        $scopes = $this->validateScopes(
-            $this->getQueryStringParameter('scope', $request, $this->defaultScope),
-            $this->makeRedirectUri(
-                $redirectUri ?? $this->getClientRedirectUri($client),
-                $stateParameter !== null ? ['state' => $stateParameter] : []
-            )
-        );
-
-        $authorizationRequest = $this->createAuthorizationRequest();
-        $authorizationRequest->setGrantTypeId($this->getIdentifier());
-        $authorizationRequest->setClient($client);
-        $authorizationRequest->setRedirectUri($redirectUri);
-
-        if ($stateParameter !== null) {
-            $authorizationRequest->setState($stateParameter);
-        }
-
-        $authorizationRequest->setScopes($scopes);
+        $authorizationRequest = $this->createAuthorizationRequest($request);
 
         $codeChallenge = $this->getQueryStringParameter('code_challenge', $request);
 
@@ -336,7 +292,7 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
 
             $authorizationRequest->setCodeChallenge($codeChallenge);
             $authorizationRequest->setCodeChallengeMethod($codeChallengeMethod);
-        } elseif ($this->requireCodeChallengeForPublicClients && !$client->isConfidential()) {
+        } elseif ($this->requireCodeChallengeForPublicClients && !$authorizationRequest->getClient()->isConfidential()) {
             throw OAuthServerException::invalidRequest('code_challenge', 'Code challenge must be provided for public clients');
         }
 
