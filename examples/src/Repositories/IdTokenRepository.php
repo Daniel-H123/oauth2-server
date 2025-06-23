@@ -11,7 +11,7 @@ use Lcobucci\JWT\Token\Builder;
 use League\OAuth2\Server\Entities\AccessTokenEntityInterface;
 
 /**
- * Exmaple implemnation of IdTokenRepositoryInterface
+ * Example implementation of IdTokenRepositoryInterface
  *
  * @author Marc Riemer <mail@marcriemer.de>
  * @license http://opensource.org/licenses/MIT MIT
