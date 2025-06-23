@@ -568,6 +568,14 @@ abstract class AbstractGrant implements GrantTypeInterface
     }
 
     /**
+     * {@inheritDoc}
+     */
+    public function respondToAccessTokenRequest(ServerRequestInterface $request, ResponseTypeInterface $responseType, DateInterval $accessTokenTTL): ResponseTypeInterface
+    {
+        throw new LogicException('This grant cannot validate an authorization request');
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function canRespondToAuthorizationRequest(ServerRequestInterface $request): bool
