@@ -127,4 +127,18 @@ abstract class AbstractAuthorizeGrant extends AbstractGrant
 
         return $redirectUri;
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function canRespondToAuthorizationRequest(ServerRequestInterface $request): bool
+    {
+        return (
+            isset($request->getQueryParams()['response_type'])
+            && $request->getQueryParams()['response_type'] === $this->getResponseTypeIdentifier()
+            && isset($request->getQueryParams()['client_id'])
+        );
+    }
+
+    abstract public function getResponseTypeIdentifier(): string;
 }

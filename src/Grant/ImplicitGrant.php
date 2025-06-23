@@ -68,6 +68,11 @@ class ImplicitGrant extends AbstractAuthorizeGrant
         return 'implicit';
     }
 
+    public function getResponseTypeIdentifier(): string
+    {
+        return 'token';
+    }
+
     /**
      * Respond to an incoming request.
      */
@@ -77,18 +82,6 @@ class ImplicitGrant extends AbstractAuthorizeGrant
         DateInterval $accessTokenTTL
     ): ResponseTypeInterface {
         throw new LogicException('This grant does not used this method');
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function canRespondToAuthorizationRequest(ServerRequestInterface $request): bool
-    {
-        return (
-            isset($request->getQueryParams()['response_type'])
-            && $request->getQueryParams()['response_type'] === 'token'
-            && isset($request->getQueryParams()['client_id'])
-        );
     }
 
     /**

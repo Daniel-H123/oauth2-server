@@ -238,16 +238,9 @@ class AuthCodeGrant extends AbstractAuthorizeGrant
         return 'authorization_code';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function canRespondToAuthorizationRequest(ServerRequestInterface $request): bool
+    public function getResponseTypeIdentifier(): string
     {
-        return (
-            array_key_exists('response_type', $request->getQueryParams())
-            && $request->getQueryParams()['response_type'] === 'code'
-            && isset($request->getQueryParams()['client_id'])
-        );
+        return 'code';
     }
 
     /**
